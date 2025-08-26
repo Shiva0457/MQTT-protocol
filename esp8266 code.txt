@@ -1,0 +1,72 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid = "Zxc";
+const char* password = "asdfghjkl";
+const char* mqtt_server = "broker.hivemq.com";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+
+void setup_wifi() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+  static bool firstAttempt = true;
+
+  if (!client.connected()) {
+    if (firstAttempt) {
+      Serial.print("Attempting MQTT connection...");
+      firstAttempt = false;
+    }
+
+    String clientId = "ESP8266Client-" + String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      firstAttempt = true; // reset for next disconnect
+    } else {
+      // wait but don't keep printing
+      delay(5000);
+    }
+  }
+}
+
+void setup() {
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  } else {
+    client.loop();
+
+    long now = millis();
+    if (now - lastMsg > 2500) {
+      lastMsg = now;
+
+      float temperature = random(200, 300) / 10.0;
+      float humidity = random(400, 600) / 10.0;
+
+      String payload = "{ \"temperature\": " + String(temperature) + ", \"humidity\": " + String(humidity) + " }";
+      client.publish("iot/fake/sensors", payload.c_str());
+
+      Serial.println("Published: " + payload);
+    }
+  }
+}
